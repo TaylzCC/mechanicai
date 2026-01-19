@@ -1,7 +1,7 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 function Badge({ text }: { text: string }) {
   return (
@@ -41,37 +41,47 @@ function Section({
   );
 }
 
-export default function ResultsPage() {
-  const sp = useSearchParams();
-
-  const make = sp.get("make") || "";
-  const model = sp.get("model") || "";
-  const year = sp.get("year") || "";
-  const symptoms = sp.get("symptoms") || "";
-
-  // Fake “report” for now. We'll replace this with real AI soon.
-  const report = {
-    safety: "Amber",
-    confidence: "Medium",
-    diyValue: "7/10",
-    causes: [
-      "Weak battery or poor connection at terminals",
-      "Failing starter motor / starter relay",
-      "Alternator not charging (if battery keeps dying)",
-    ],
-    steps: [
-      "Check battery terminals for looseness/corrosion. Tighten/clean if needed.",
-      "Try a jump start. If it starts, suspect battery/charging.",
-      "If you have a multimeter: check battery voltage (12.4–12.7V off; ~13.8–14.5V running).",
-      "Listen for single click vs rapid clicking vs cranking — note what happens.",
-      "If voltage is good but it won’t crank, starter/relay becomes more likely.",
-    ],
-    stopIf: [
-      "You smell fuel or see smoke",
-      "The car is overheating",
-      "Brakes/steering feel unsafe",
-    ],
+type Report = {
+  vehicle: string;
+  safety: string;
+  safetyNote?: string;
+  confidence: string;
+  diyValue: string;
+  likelyCauses: string[];
+  cheapestFirstSteps: string[];
+  stopAndGetHelpIf: string[];
+  input: {
+    make: string;
+    model: string;
+    year: string;
+    symptoms: string;
   };
+};
+
+export default function ResultsPage() {
+  const [report, setReport] = useState<Report | null>(null);
+
+  useEffect(() => {
+    const raw = sessionStorage.getItem("mechanicai_report");
+    if (!raw) return;
+    try {
+      setReport(JSON.parse(raw));
+    } catch {
+      setReport(null);
+    }
+  }, []);
+
+  if (!report) {
+    return (
+      <main style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
+        <h1 style={{ fontSize: 28, marginBottom: 6 }}>Repair Plan</h1>
+        <p style={{ opacity: 0.8 }}>
+          No report found. Start a new diagnosis.
+        </p>
+        <Link href="/diagnose">← Go to diagnose</Link>
+      </main>
+    );
+  }
 
   return (
     <main style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
@@ -86,9 +96,7 @@ export default function ResultsPage() {
       >
         <div>
           <h1 style={{ fontSize: 28, marginBottom: 6 }}>Repair Plan</h1>
-          <p style={{ opacity: 0.8, margin: 0 }}>
-            {year} {make} {model}
-          </p>
+          <p style={{ opacity: 0.8, margin: 0 }}>{report.vehicle}</p>
         </div>
 
         <Link href="/diagnose" style={{ textDecoration: "none", opacity: 0.8 }}>
@@ -102,15 +110,29 @@ export default function ResultsPage() {
         <Badge text={`DIY Value: ${report.diyValue}`} />
       </div>
 
+      {report.safetyNote && (
+        <div
+          style={{
+            marginTop: 14,
+            padding: 12,
+            borderRadius: 12,
+            border: "1px solid #eee",
+            background: "#fafafa",
+          }}
+        >
+          <b>Safety note:</b> {report.safetyNote}
+        </div>
+      )}
+
       <Section title="Your description">
         <p style={{ margin: 0, whiteSpace: "pre-wrap", opacity: 0.9 }}>
-          {symptoms || "—"}
+          {report.input.symptoms}
         </p>
       </Section>
 
       <Section title="Most likely causes (ranked)">
         <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.8 }}>
-          {report.causes.map((c) => (
+          {report.likelyCauses.map((c) => (
             <li key={c}>{c}</li>
           ))}
         </ol>
@@ -118,7 +140,7 @@ export default function ResultsPage() {
 
       <Section title="Cheapest-first diagnostic steps">
         <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.8 }}>
-          {report.steps.map((s) => (
+          {report.cheapestFirstSteps.map((s) => (
             <li key={s}>{s}</li>
           ))}
         </ol>
@@ -126,7 +148,7 @@ export default function ResultsPage() {
 
       <Section title="Stop & get help if…">
         <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.8 }}>
-          {report.stopIf.map((s) => (
+          {report.stopAndGetHelpIf.map((s) => (
             <li key={s}>{s}</li>
           ))}
         </ul>

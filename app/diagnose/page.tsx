@@ -10,6 +10,36 @@ export default function DiagnosePage() {
   const [model, setModel] = useState("");
   const [year, setYear] = useState("");
   const [symptoms, setSymptoms] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleGenerate() {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/diagnose", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ make, model, year, symptoms }),
+      });
+
+      if (!res.ok) {
+        const msg = await res.json().catch(() => ({}));
+        throw new Error(msg?.error || "Failed to generate report.");
+      }
+
+      const report = await res.json();
+
+      // Store for the results page
+      sessionStorage.setItem("mechanicai_report", JSON.stringify(report));
+      router.push("/results");
+    } catch (e: any) {
+      setError(e?.message || "Something went wrong.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <main style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
@@ -65,21 +95,23 @@ export default function DiagnosePage() {
           padding: "10px 14px",
           borderRadius: 10,
           border: "1px solid #ddd",
-          cursor: make && model && year && symptoms ? "pointer" : "not-allowed",
+          cursor:
+            !make || !model || !year || !symptoms || loading
+              ? "not-allowed"
+              : "pointer",
+          opacity: loading ? 0.7 : 1,
         }}
-        disabled={!make || !model || !year || !symptoms}
-        onClick={() => {
-          const q = new URLSearchParams({
-            make,
-            model,
-            year,
-            symptoms,
-          }).toString();
-          router.push(`/results?${q}`);
-        }}
+        disabled={!make || !model || !year || !symptoms || loading}
+        onClick={handleGenerate}
       >
-        Generate repair plan
+        {loading ? "Generating..." : "Generate repair plan"}
       </button>
+
+      {error && (
+        <p style={{ marginTop: 10, color: "crimson" }}>
+          {error}
+        </p>
+      )}
 
       <p style={{ marginTop: 10, fontSize: 12, opacity: 0.75 }}>
         Safety note: if you smell fuel, see smoke, have brake/steering issues, or
