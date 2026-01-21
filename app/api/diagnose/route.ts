@@ -7,25 +7,11 @@ type DiagnoseInput = {
   symptoms: string;
 };
 
-type Report = {
-  vehicle: string;
-  safety: "Green" | "Amber" | "Red";
-  safetyNote: string;
-  confidence: "Low" | "Medium" | "High";
-  diyValue: string;
-  likelyCauses: string[];
-  cheapestFirstSteps: string[];
-  stopAndGetHelpIf: string[];
-  input: DiagnoseInput;
-  category: string;
-};
-
 function includesAny(text: string, words: string[]) {
   return words.some((w) => text.includes(w));
 }
 
 function safetyGate(symptomsLower: string) {
-  // Red flags: fire/crash risk, brakes/steering, overheating, fuel leaks
   const red = [
     "fuel",
     "petrol",
@@ -79,41 +65,32 @@ function safetyGate(symptomsLower: string) {
 }
 
 function pickCategory(symptomsLower: string) {
-  if (includesAny(symptomsLower, ["won't start", "wont start", "no start", "not starting"])) {
-    return "no_start";
-  }
-  if (includesAny(symptomsLower, ["clicking", "click", "cranks slowly", "slow crank"])) {
-    return "starting_clicking";
-  }
-  if (includesAny(symptomsLower, ["overheat", "overheating", "coolant", "temperature"])) {
-    return "overheating";
-  }
-  if (includesAny(symptomsLower, ["brake", "brakes", "squeal", "grinding"])) {
-    return "brakes_noise";
-  }
-  if (includesAny(symptomsLower, ["engine light", "check engine", "cel"])) {
-    return "check_engine";
-  }
-  if (includesAny(symptomsLower, ["shaking", "vibration", "vibrating"])) {
-    return "vibration";
-  }
-  if (includesAny(symptomsLower, ["stall", "stalls", "stalling"])) {
-    return "stalling";
-  }
-  if (includesAny(symptomsLower, ["misfire", "rough idle", "rough", "judder"])) {
-    return "misfire_rough";
-  }
-  if (includesAny(symptomsLower, ["battery", "alternator", "charging", "keeps dying"])) {
-    return "charging";
-  }
+  if (includesAny(symptomsLower, ["won't start", "wont start", "no start", "not starting"])) return "no_start";
+  if (includesAny(symptomsLower, ["clicking", "click", "cranks slowly", "slow crank"])) return "starting_clicking";
+  if (includesAny(symptomsLower, ["overheat", "overheating", "coolant", "temperature"])) return "overheating";
+  if (includesAny(symptomsLower, ["brake", "brakes", "squeal", "grinding"])) return "brakes_noise";
+  if (includesAny(symptomsLower, ["engine light", "check engine", "cel"])) return "check_engine";
+  if (includesAny(symptomsLower, ["shaking", "vibration", "vibrating"])) return "vibration";
+  if (includesAny(symptomsLower, ["stall", "stalls", "stalling"])) return "stalling";
+  if (includesAny(symptomsLower, ["misfire", "rough idle", "rough", "judder"])) return "misfire_rough";
+  if (includesAny(symptomsLower, ["battery", "alternator", "charging", "keeps dying"])) return "charging";
   return "generic";
 }
 
-function buildReport(vehicle: string, symptomsLower: string): Omit<Report, "vehicle" | "input"> {
+// IMPORTANT: This function returns ONLY the dynamic diagnosis fields.
+// Safety is handled separately by safetyGate(), so we don't include it here.
+function buildReport(symptomsLower: string): {
+  category: string;
+  confidence: "Low" | "Medium" | "High";
+  diyValue: string;
+  likelyCauses: string[];
+  cheapestFirstSteps: string[];
+  stopAndGetHelpIf: string[];
+} {
   const cat = pickCategory(symptomsLower);
 
   // Default (generic) report
-  let confidence: Report["confidence"] = "Low";
+  let confidence: "Low" | "Medium" | "High" = "Low";
   let diyValue = "6/10";
   let likelyCauses = [
     "Loose or damaged hose/connector (visual inspection needed)",
@@ -127,7 +104,6 @@ function buildReport(vehicle: string, symptomsLower: string): Omit<Report, "vehi
     "If a warning light is on, read the OBD2 codes (even a cheap scanner helps).",
   ];
 
-  // Category-specific plans
   if (cat === "no_start") {
     confidence = "Medium";
     diyValue = "8/10";
@@ -310,9 +286,9 @@ export async function POST(req: Request) {
   const safety = safetyGate(symptomsLower);
 
   const vehicle = `${year} ${make} ${model}`;
-  const dynamic = buildReport(vehicle, symptomsLower);
+  const dynamic = buildReport(symptomsLower);
 
-  const report: Report = {
+  return NextResponse.json({
     vehicle,
     safety: safety.level,
     safetyNote: safety.note,
@@ -323,7 +299,5 @@ export async function POST(req: Request) {
     stopAndGetHelpIf: dynamic.stopAndGetHelpIf,
     input: { make, model, year, symptoms },
     category: dynamic.category,
-  };
-
-  return NextResponse.json(report);
+  });
 }
